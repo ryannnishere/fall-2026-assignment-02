@@ -34,15 +34,119 @@ describe('BudgetLimitStrategy (Feature 1)', () => {
   //   expect(result).not.toContain('Rent over budget');
   // });
 
-  it.todo('should group expenses correctly by category and sum them');
+  it('should group expenses correctly by category and sum them', async () => {
+    vi.spyOn(BudgetService, 'getCategoryBudgets').mockResolvedValue({
+      Food: 200,
+    });
 
-  it.todo('should calculate absolute overage amounts and percentage exceeded');
+    const testTransactions: Transaction[] = [
+      {
+        id: '1',
+        date: '2026-05-01',
+        amount: -50,
+        category: 'Food',
+        description: 'Lunch',
+        status: 'completed',
+      },
+      {
+        id: '2',
+        date: '2026-05-02',
+        amount: -30,
+        category: 'Food',
+        description: 'Snacks',
+        status: 'completed',
+      },
+    ];
 
-  it.todo(
-    'should list the specific transactions contributing to categories that are over budget',
-  );
+    const result = await strategy.execute(testTransactions);
 
-  it.todo('should handle scenarios where no categories are over budget');
+    // 50 + 30 = 80 total spent for Food
+    expect(result).toContain('Food: $80.00 / $200.00');
+  });
 
-  it.todo('should handle empty transaction list gracefully');
+  it('should calculate absolute overage amounts and percentage exceeded', async () => {
+    vi.spyOn(BudgetService, 'getCategoryBudgets').mockResolvedValue({
+      Food: 100,
+    });
+
+    const testTransactions: Transaction[] = [
+      {
+        id: '1',
+        date: '2026-05-01',
+        amount: -150,
+        category: 'Food',
+        description: 'Groceries',
+        status: 'completed',
+      },
+    ];
+
+    const result = await strategy.execute(testTransactions);
+
+    // spent 150, limit 100 -> overage $50.00, 150%
+    expect(result).toContain('over by $50.00 (150%)');
+  });
+
+  it('should list the specific transactions contributing to categories that are over budget', async () => {
+    vi.spyOn(BudgetService, 'getCategoryBudgets').mockResolvedValue({
+      Food: 50,
+      Rent: 1000,
+    });
+
+    const testTransactions: Transaction[] = [
+      {
+        id: '1',
+        date: '2026-05-01',
+        amount: -80,
+        category: 'Food',
+        description: 'Groceries',
+        status: 'completed',
+      },
+      {
+        id: '2',
+        date: '2026-05-02',
+        amount: -900,
+        category: 'Rent',
+        description: 'Apartment',
+        status: 'completed',
+      },
+    ];
+
+    const result = await strategy.execute(testTransactions);
+
+    expect(result).toContain('2026-05-01 | Food | Groceries | $80.00');
+    expect(result).not.toContain('Apartment'); // Rent is under budget, shouldn't show up here
+  });
+
+  it('should handle scenarios where no categories are over budget', async () => {
+    vi.spyOn(BudgetService, 'getCategoryBudgets').mockResolvedValue({
+      Food: 200,
+    });
+
+    const testTransactions: Transaction[] = [
+      {
+        id: '1',
+        date: '2026-05-01',
+        amount: -50,
+        category: 'Food',
+        description: 'Groceries',
+        status: 'completed',
+      },
+    ];
+
+    const result = await strategy.execute(testTransactions);
+
+    expect(result).toContain('Over Budget:\n  None');
+    expect(result).toContain('Transactions causing overage:\n  None');
+  });
+
+  it('should handle empty transaction list gracefully', async () => {
+    vi.spyOn(BudgetService, 'getCategoryBudgets').mockResolvedValue({
+      Food: 200,
+    });
+
+    const result = await strategy.execute([]);
+
+    expect(result).toContain('Food: $0.00 / $200.00');
+    expect(result).toContain('None');
+  });
 });
